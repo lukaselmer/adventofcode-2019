@@ -1,5 +1,5 @@
 import { input1 } from './inputs'
-import { calcSingleFuelRequirements } from './part1star1'
+import { calcSingleFuelRequirements } from './a1s1'
 
 function main() {
   const massesToProcess = input1.split('\n').map((el) => parseInt(el, 10))
