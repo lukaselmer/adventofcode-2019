@@ -1,4 +1,5 @@
 import { input3 } from './inputs'
+import { assertNever } from './shared/ts-utils'
 
 function main(wire1: string, wire2: string) {
   const board = new Board()
@@ -174,10 +175,6 @@ class PointFactory {
     this.cache.set(key, newPoint)
     return newPoint
   }
-}
-
-export function assertNever(value: never): never {
-  throw new Error(`Unexpected value: ${value}`)
 }
 
 function assertEquals<T>(a: T, b: T) {

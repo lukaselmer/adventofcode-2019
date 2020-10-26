@@ -1,6 +1,7 @@
 import { times } from 'lodash'
 import { input2Examples, input2Star1, input5, input5Examples } from './inputs'
 import { assertEquals } from './shared/testing'
+import { assertNever } from './shared/ts-utils'
 
 function main(input: string, positionsToReplace: [number, number]) {
   console.log(run(input, { positionsToReplace }))
@@ -32,39 +33,57 @@ function calculate(program: string, options: { inputs: number[]; debug?: boolean
 
   const codes = program.split(',').map((el) => parseInt(el, 10))
 
-  let currentPosition = 0
+  let instructionPointer = 0
   const outputs: number[] = []
 
-  while (codes[currentPosition] !== 99) {
-    const instruction = parseInstruction(codes, currentPosition)
+  while (codes[instructionPointer] !== 99) {
+    const instruction = parseInstruction(codes, instructionPointer)
     if (debug) {
       console.log(instruction)
-      console.log(codes.slice(currentPosition, currentPosition + 5))
+      console.log(codes.slice(instructionPointer, instructionPointer + 5))
       console.log(codes.slice(0, 10).join(','))
     }
 
-    const p1 = codes[currentPosition + 1]
-    const p2 = codes[currentPosition + 2]
-    const p3 = codes[currentPosition + 3]
-    const v1 = instruction.modeP1 === 'position' ? codes[p1] : p1
-    const v2 = instruction.modeP2 === 'position' ? codes[p2] : p2
-    const v3 = instruction.modeP3 === 'position' ? codes[p3] : p3
+    const { p1, p2 } = extractParameters(codes, instructionPointer, instruction)
 
     if (instruction.name == 'nop') {
       /* pass */
-    } else if (instruction.numParams === 2) {
-      codes[codes[currentPosition + 3]] = instruction.operation(v1, v2)
+    } else if (instruction.numParams === 2 && 'operation' in instruction) {
+      codes[codes[instructionPointer + 3]] = instruction.operation(p1, p2)
     } else if (instruction.name === 'input') {
       const input = inputs.shift()
       if (input === undefined) exit('No remaining inputs', codes)
-      codes[codes[currentPosition + 1]] = input
+      codes[codes[instructionPointer + 1]] = input
     } else if (instruction.name === 'output') {
-      outputs.push(v1)
+      outputs.push(p1)
+    } else if ('shouldJump' in instruction) {
+      if (instruction.shouldJump(p1)) instructionPointer = p2
+    } else {
+      assertNever(instruction)
     }
-    currentPosition += 2 + instruction.numParams
+
+    if (!('shouldJump' in instruction) || !instruction.shouldJump(p1)) {
+      instructionPointer += 2 + instruction.numParams
+    }
   }
 
   return { codes, outputs }
+}
+
+type Mode = ReturnType<typeof parseInstruction>['modeP1' | 'modeP2' | 'modeP3']
+
+function extractParameters(
+  codes: number[],
+  instructionPointer: number,
+  instruction: { modeP1: Mode; modeP2: Mode; modeP3: Mode }
+) {
+  const code1 = codes[instructionPointer + 1]
+  const code2 = codes[instructionPointer + 2]
+  const code3 = codes[instructionPointer + 3]
+  const p1 = instruction.modeP1 === 'position' ? codes[code1] : code1
+  const p2 = instruction.modeP2 === 'position' ? codes[code2] : code2
+  const p3 = instruction.modeP3 === 'position' ? codes[code3] : code3
+  return { p1, p2, p3 }
 }
 
 function parseInstruction(codes: number[], currentPosition: number) {
@@ -88,19 +107,27 @@ function parseInstruction(codes: number[], currentPosition: number) {
       numParams: 2,
       ...parsed,
     } as const
-  if (opcode === 3)
+  if (opcode === 3) return { name: 'input', numParams: 0, ...parsed } as const
+  if (opcode === 4) return { name: 'output', numParams: 0, ...parsed } as const
+  if (opcode === 5)
+    return { name: 'jmpt', shouldJump: (p1: number) => p1 !== 0, numParams: 1, ...parsed } as const
+  if (opcode === 6)
+    return { name: 'jmpf', shouldJump: (p1: number) => p1 === 0, numParams: 1, ...parsed } as const
+  if (opcode === 7)
     return {
-      name: 'input',
-      numParams: 0,
+      name: 'lt',
+      operation: (p1: number, p2: number) => (p1 < p2 ? 1 : 0),
+      numParams: 2,
       ...parsed,
     } as const
-  if (opcode === 4)
+  if (opcode === 8)
     return {
-      name: 'output',
-      numParams: 0,
+      name: 'eq',
+      operation: (p1: number, p2: number) => (p1 === p2 ? 1 : 0),
+      numParams: 2,
       ...parsed,
     } as const
-  return { name: 'nop', operation: () => null, numParams: 2, ...parsed } as const
+  return { name: 'nop', numParams: 2, ...parsed } as const
 }
 
 function parseCodeAndModes(code: number) {
@@ -135,3 +162,4 @@ assertEquals(run(input2Examples[4]), 30)
 assertEquals(run(input2Star1, { positionsToReplace: [65, 77] }), 19690720)
 assertEquals(run(input5Examples[0], { outputRegister: 4 }), 99)
 assertEquals(calculate(input5, { inputs: [1] }).outputs.reverse()[0], 11933517)
+assertEquals(calculate(input5, { inputs: [5] }).outputs[0], 10428568)
