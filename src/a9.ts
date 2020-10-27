@@ -188,3 +188,4 @@ assertEquals(calculate(input9Examples[1], {}).outputs[0], 1219070632396864)
 assertEquals(calculate(input9Examples[2]).outputs[0], 1125899906842624)
 
 assertEquals(calculate(input9, { inputs: [1] }).outputs, [2204990589])
+assertEquals(calculate(input9, { inputs: [2] }).outputs, [50008])
